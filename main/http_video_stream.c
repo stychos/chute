@@ -84,7 +84,8 @@ static void video_stream_task(void *arg)
     httpd_resp_set_hdr(req, "Cache-Control", "no-cache, no-store");
 
     isStreaming = true;
-    enable_led(true);
+    if (led_stream_enabled)
+        enable_led(true);
 
     while (!s_stream_stop) {
         fb = esp_camera_fb_get();
@@ -144,7 +145,8 @@ static void video_stream_task(void *arg)
 
 cleanup:
     isStreaming = false;
-    enable_led(false);
+    if (!led_on)
+        enable_led(false);
     httpd_req_async_handler_complete(req);
     ESP_LOGI(TAG, "Video stream ended");
     s_stream_task = NULL;
@@ -153,6 +155,11 @@ cleanup:
 
 static esp_err_t stream_handler(httpd_req_t *req)
 {
+    if (!esp_camera_sensor_get()) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Camera not available");
+        return ESP_FAIL;
+    }
+
     // Stop any existing stream task
     if (s_stream_task) {
         ESP_LOGI(TAG, "Stopping previous stream");
@@ -162,6 +169,8 @@ static esp_err_t stream_handler(httpd_req_t *req)
         }
         if (s_stream_task) {
             ESP_LOGW(TAG, "Previous stream task did not stop in time");
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Previous stream still running");
+            return ESP_FAIL;
         }
     }
 

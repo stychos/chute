@@ -8,6 +8,7 @@
 #include "esp_psram.h"
 #include "nvs_flash.h"
 #include "esp_spiffs.h"
+#include "esp_ota_ops.h"
 #include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -15,6 +16,7 @@
 #include "camera_pins.h"
 #include "settings_manager.h"
 #include "http_ui.h"
+#include "http_camera.h"
 #include "http_video_stream.h"
 #include "http_audio_stream.h"
 
@@ -46,6 +48,9 @@ void app_main(void)
            (chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "embedded" : "external");
 
     printf("Minimum free heap size: %" PRIu32 " bytes\n", esp_get_minimum_free_heap_size());
+
+    // 0. Mark OTA partition as valid (prevents rollback on crash)
+    esp_ota_mark_app_valid_cancel_rollback();
 
     // 1. NVS init (with erase-and-retry on corruption)
     esp_err_t ret = nvs_flash_init();
@@ -124,29 +129,32 @@ void app_main(void)
     // 4. Camera init
     esp_err_t err = esp_camera_init(&config);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Camera init failed with error 0x%x", err);
-        return;
-    }
-
-    // 5. Sensor adjustments
-    sensor_t *s = esp_camera_sensor_get();
-    if (s->id.PID == OV3660_PID) {
-        s->set_vflip(s, 1);
-        s->set_brightness(s, 1);
-        s->set_saturation(s, -2);
-    }
-    if (config.pixel_format == PIXFORMAT_JPEG) {
-        s->set_framesize(s, FRAMESIZE_VGA);
-    }
+        ESP_LOGE(TAG, "Camera init failed with error 0x%x (continuing without camera)", err);
+    } else {
+        camera_available = true;
+        // 5. Sensor defaults
+        sensor_t *s = esp_camera_sensor_get();
+        if (s->id.PID == OV3660_PID) {
+            s->set_vflip(s, 1);
+            s->set_brightness(s, 1);
+            s->set_saturation(s, -2);
+        }
+        if (config.pixel_format == PIXFORMAT_JPEG) {
+            s->set_framesize(s, FRAMESIZE_VGA);
+        }
 
 #if defined(CAMERA_MODEL_M5STACK_WIDE) || defined(CAMERA_MODEL_M5STACK_ESP32CAM)
-    s->set_vflip(s, 1);
-    s->set_hmirror(s, 1);
+        s->set_vflip(s, 1);
+        s->set_hmirror(s, 1);
 #endif
 
 #if defined(CAMERA_MODEL_ESP32S3_EYE)
-    s->set_vflip(s, 1);
+        s->set_vflip(s, 1);
 #endif
+
+        // 6. Restore user camera settings from NVS (overrides defaults above)
+        loadCameraSettings();
+    }
 
     // 6. LED flash
 #if defined(LED_GPIO_NUM)

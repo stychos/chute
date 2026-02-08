@@ -1,4 +1,5 @@
 #include "http_audio_stream.h"
+#include "http_ui.h"
 #include "settings_manager.h"
 
 #include <string.h>
@@ -21,9 +22,12 @@ static volatile TaskHandle_t s_audio_task = NULL;
 
 static esp_err_t mic_i2s_init(void)
 {
+    int sample_rate = stored_sample_rate;
+    int sample_bits = SAMPLE_BITS;
+
     i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_MIC_PORT, I2S_ROLE_MASTER);
     chan_cfg.dma_desc_num = DMA_BUF_COUNT;
-    chan_cfg.dma_frame_num = DMA_BUF_LEN / (SAMPLE_BITS / 8);
+    chan_cfg.dma_frame_num = DMA_BUF_LEN / (sample_bits / 8);
 
     esp_err_t err = i2s_new_channel(&chan_cfg, NULL, &rx_handle);
     if (err != ESP_OK) {
@@ -33,11 +37,11 @@ static esp_err_t mic_i2s_init(void)
 
     i2s_std_config_t std_cfg = {
         .clk_cfg = {
-            .sample_rate_hz = SAMPLE_RATE,
+            .sample_rate_hz = (uint32_t)sample_rate,
             .clk_src = I2S_CLK_SRC_APLL,
             .mclk_multiple = I2S_MCLK_MULTIPLE_256,
         },
-        .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(SAMPLE_BITS, I2S_SLOT_MODE_MONO),
+        .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(sample_bits, I2S_SLOT_MODE_MONO),
         // XIAO_ESP32S3 (PDM): use driver/i2s_pdm.h + i2s_pdm_rx_config_t instead
         .gpio_cfg = {
             .mclk = I2S_GPIO_UNUSED,
@@ -62,8 +66,31 @@ static esp_err_t mic_i2s_init(void)
     }
 
     ESP_LOGI(TAG, "I2S channel initialized (port %d, rate %d, bits %d)",
-             I2S_MIC_PORT, SAMPLE_RATE, SAMPLE_BITS);
+             I2S_MIC_PORT, sample_rate, sample_bits);
     return ESP_OK;
+}
+
+void mic_i2s_reinit(void)
+{
+    // Stop active stream first
+    if (s_audio_task) {
+        s_audio_stop = true;
+        for (int i = 0; i < 30 && s_audio_task; i++) {
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+    }
+
+    if (rx_handle) {
+        i2s_del_channel(rx_handle);
+        rx_handle = NULL;
+    }
+
+    if (mic_i2s_init() != ESP_OK) {
+        ESP_LOGE(TAG, "I2S reinit failed");
+        mic_available = false;
+    } else {
+        mic_available = true;
+    }
 }
 
 static void initializeWAVHeader(struct WAVHeader *header, uint32_t sampleRate,
@@ -79,9 +106,9 @@ static void initializeWAVHeader(struct WAVHeader *header, uint32_t sampleRate,
     header->audioFormat = 1; // PCM
     header->numChannels = numChannels;
     header->sampleRate = sampleRate;
-    header->bitsPerSample = 16; // Always 16-bit output for browser compatibility
-    header->byteRate = (sampleRate * 16 * numChannels) / 8;
-    header->blockAlign = (16 * numChannels) / 8;
+    header->bitsPerSample = bitsPerSample;
+    header->byteRate = (sampleRate * bitsPerSample * numChannels) / 8;
+    header->blockAlign = (bitsPerSample * numChannels) / 8;
     header->subchunk2Size = 0xFFFFFFFF;
 }
 
@@ -104,8 +131,11 @@ static void audio_stream_task(void *arg)
 
     ESP_LOGI(TAG, "Audio stream started");
 
+    int sample_rate = stored_sample_rate;
+    int wav_bits = stored_wav_bits;
+
     struct WAVHeader wav_header;
-    initializeWAVHeader(&wav_header, SAMPLE_RATE, SAMPLE_BITS, 1);
+    initializeWAVHeader(&wav_header, sample_rate, wav_bits, 1);
 
     httpd_resp_set_type(req, "audio/wav");
     httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
@@ -121,14 +151,14 @@ static void audio_stream_task(void *arg)
     }
 
     uint8_t i2s_buffer[DMA_BUF_LEN];
-    int16_t out_buffer[DMA_BUF_LEN / 4]; // 1 x 16-bit sample per 32-bit I2S frame
+    uint8_t out_buffer[DMA_BUF_LEN];
     size_t bytes_read = 0;
 
     while (!s_audio_stop) {
         esp_err_t rd = i2s_channel_read(rx_handle, i2s_buffer, sizeof(i2s_buffer),
                                          &bytes_read, pdMS_TO_TICKS(1000));
         if (rd == ESP_ERR_TIMEOUT) {
-            continue; // No data yet, try again
+            continue;
         }
         if (rd != ESP_OK) {
             ESP_LOGE(TAG, "I2S read failed: %s", esp_err_to_name(rd));
@@ -136,15 +166,45 @@ static void audio_stream_task(void *arg)
         }
 
         if (bytes_read > 0) {
-            int samples_read = bytes_read / 4;
-            int32_t *samples32 = (int32_t *)i2s_buffer;
-            for (int i = 0; i < samples_read; i++) {
-                int32_t amplified = (samples32[i] >> 16) * mic_gain;
-                if (amplified > 32767) amplified = 32767;
-                else if (amplified < -32768) amplified = -32768;
-                out_buffer[i] = (int16_t)amplified;
+            size_t out_bytes;
+            if (SAMPLE_BITS == 32 && wav_bits == 24) {
+                // 32-bit I2S → 24-bit PCM (3 bytes per sample, little-endian)
+                int samples_read = bytes_read / 4;
+                int32_t *samples32 = (int32_t *)i2s_buffer;
+                for (int i = 0; i < samples_read; i++) {
+                    int32_t amplified = (samples32[i] >> 8) * mic_gain;
+                    if (amplified > 8388607) amplified = 8388607;
+                    else if (amplified < -8388608) amplified = -8388608;
+                    out_buffer[i * 3]     = (amplified)       & 0xFF;
+                    out_buffer[i * 3 + 1] = (amplified >> 8)  & 0xFF;
+                    out_buffer[i * 3 + 2] = (amplified >> 16) & 0xFF;
+                }
+                out_bytes = samples_read * 3;
+            } else if (SAMPLE_BITS == 32) {
+                // 32-bit I2S → 16-bit PCM
+                int samples_read = bytes_read / 4;
+                int32_t *samples32 = (int32_t *)i2s_buffer;
+                int16_t *out16 = (int16_t *)out_buffer;
+                for (int i = 0; i < samples_read; i++) {
+                    int32_t amplified = (samples32[i] >> 16) * mic_gain;
+                    if (amplified > 32767) amplified = 32767;
+                    else if (amplified < -32768) amplified = -32768;
+                    out16[i] = (int16_t)amplified;
+                }
+                out_bytes = samples_read * sizeof(int16_t);
+            } else {
+                // 16-bit I2S → 16-bit PCM
+                int samples_read = bytes_read / 2;
+                int16_t *samples16 = (int16_t *)i2s_buffer;
+                int16_t *out16 = (int16_t *)out_buffer;
+                for (int i = 0; i < samples_read; i++) {
+                    int32_t amplified = (int32_t)samples16[i] * mic_gain;
+                    if (amplified > 32767) amplified = 32767;
+                    else if (amplified < -32768) amplified = -32768;
+                    out16[i] = (int16_t)amplified;
+                }
+                out_bytes = samples_read * sizeof(int16_t);
             }
-            size_t out_bytes = samples_read * sizeof(int16_t);
             err = httpd_resp_send_chunk(req, (const char *)out_buffer, out_bytes);
             if (err != ESP_OK) {
                 ESP_LOGI(TAG, "Audio client disconnected");
@@ -165,6 +225,11 @@ done:
 
 static esp_err_t audio_stream_handler(httpd_req_t *req)
 {
+    if (!rx_handle) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Mic not available");
+        return ESP_FAIL;
+    }
+
     // Stop any existing audio stream task
     if (s_audio_task) {
         ESP_LOGI(TAG, "Stopping previous audio stream");
@@ -174,6 +239,8 @@ static esp_err_t audio_stream_handler(httpd_req_t *req)
         }
         if (s_audio_task) {
             ESP_LOGW(TAG, "Previous audio task did not stop in time");
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Previous stream still running");
+            return ESP_FAIL;
         }
     }
 
@@ -188,7 +255,7 @@ static esp_err_t audio_stream_handler(httpd_req_t *req)
     }
 
     // Spawn streaming in a dedicated FreeRTOS task
-    BaseType_t ret = xTaskCreate(audio_stream_task, "aud_stream", 4096,
+    BaseType_t ret = xTaskCreate(audio_stream_task, "aud_stream", 5120,
                                  async_req, 5, (TaskHandle_t *)&s_audio_task);
     if (ret != pdPASS) {
         ESP_LOGE(TAG, "Failed to create audio stream task");
@@ -206,6 +273,8 @@ void start_http_audio_stream(void)
     esp_err_t err = mic_i2s_init();
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "I2S init failed, audio will be unavailable");
+    } else {
+        mic_available = true;
     }
 
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
