@@ -4,11 +4,12 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width,initial-scale=1">
         <title>ESP32 OV2460</title>
+        <link rel="stylesheet" href="/common.css">
         <style>
             body {
                 font-family: Arial,Helvetica,sans-serif;
-                background: #181818;
-                color: #EFEFEF;
+                background: var(--bg-primary, #1a1a2e);
+                color: var(--text-primary, #e0e0e0);
                 font-size: 16px
             }
 
@@ -28,7 +29,7 @@
                 display: none;
                 flex-wrap: nowrap;
                 min-width: 340px;
-                background: #363636;
+                background: var(--bg-card, #16213e);
                 padding: 8px;
                 border-radius: 4px;
                 margin-top: -10px;
@@ -143,7 +144,7 @@
                 line-height: 28px;
                 cursor: pointer;
                 color: #fff;
-                background: #ff3034;
+                background: var(--accent, #e94560);
                 border-radius: 5px;
                 font-size: 16px;
                 outline: 0
@@ -161,11 +162,11 @@
             }
 
             button:hover {
-                background: #ff494d
+                background: var(--accent-hover, #c73650)
             }
 
             button:active {
-                background: #f21c21
+                background: var(--accent-active, #b02040)
             }
 
             button.disabled {
@@ -177,7 +178,7 @@
                 -webkit-appearance: none;
                 width: 100%;
                 height: 22px;
-                background: #363636;
+                background: var(--bg-card, #16213e);
                 cursor: pointer;
                 margin: 0
             }
@@ -190,9 +191,9 @@
                 width: 100%;
                 height: 2px;
                 cursor: pointer;
-                background: #EFEFEF;
+                background: var(--text-primary, #e0e0e0);
                 border-radius: 0;
-                border: 0 solid #EFEFEF
+                border: 0 solid var(--text-primary, #e0e0e0)
             }
 
             input[type=range]::-webkit-slider-thumb {
@@ -200,23 +201,23 @@
                 height: 22px;
                 width: 22px;
                 border-radius: 50px;
-                background: #ff3034;
+                background: var(--accent, #e94560);
                 cursor: pointer;
                 -webkit-appearance: none;
                 margin-top: -11.5px
             }
 
             input[type=range]:focus::-webkit-slider-runnable-track {
-                background: #EFEFEF
+                background: var(--text-primary, #e0e0e0)
             }
 
             input[type=range]::-moz-range-track {
                 width: 100%;
                 height: 2px;
                 cursor: pointer;
-                background: #EFEFEF;
+                background: var(--text-primary, #e0e0e0);
                 border-radius: 0;
-                border: 0 solid #EFEFEF
+                border: 0 solid var(--text-primary, #e0e0e0)
             }
 
             input[type=range]::-moz-range-thumb {
@@ -224,7 +225,7 @@
                 height: 22px;
                 width: 22px;
                 border-radius: 50px;
-                background: #ff3034;
+                background: var(--accent, #e94560);
                 cursor: pointer
             }
 
@@ -238,14 +239,14 @@
             }
 
             input[type=range]::-ms-fill-lower {
-                background: #EFEFEF;
-                border: 0 solid #EFEFEF;
+                background: var(--text-primary, #e0e0e0);
+                border: 0 solid var(--text-primary, #e0e0e0);
                 border-radius: 0
             }
 
             input[type=range]::-ms-fill-upper {
-                background: #EFEFEF;
-                border: 0 solid #EFEFEF;
+                background: var(--text-primary, #e0e0e0);
+                border: 0 solid var(--text-primary, #e0e0e0);
                 border-radius: 0
             }
 
@@ -254,17 +255,17 @@
                 height: 22px;
                 width: 22px;
                 border-radius: 50px;
-                background: #ff3034;
+                background: var(--accent, #e94560);
                 cursor: pointer;
                 height: 2px
             }
 
             input[type=range]:focus::-ms-fill-lower {
-                background: #EFEFEF
+                background: var(--text-primary, #e0e0e0)
             }
 
             input[type=range]:focus::-ms-fill-upper {
-                background: #363636
+                background: var(--bg-card, #16213e)
             }
 
             .switch {
@@ -307,7 +308,7 @@
             }
 
             input:checked+.slider {
-                background-color: #ff3034
+                background-color: var(--accent, #e94560)
             }
 
             input:checked+.slider:before {
@@ -316,7 +317,7 @@
             }
 
             select {
-                border: 1px solid #363636;
+                border: 1px solid var(--bg-card, #16213e);
                 font-size: 14px;
                 height: 22px;
                 outline: 0;
@@ -332,7 +333,7 @@
                 position: absolute;
                 right: 5px;
                 top: 5px;
-                background: #ff3034;
+                background: var(--accent, #e94560);
                 width: 16px;
                 height: 16px;
                 border-radius: 100px;
@@ -347,7 +348,7 @@
             }
 
             input[type=text] {
-                border: 1px solid #363636;
+                border: 1px solid var(--bg-card, #16213e);
                 font-size: 14px;
                 height: 20px;
                 margin: 1px;
@@ -380,6 +381,12 @@
         </style>
     </head>
     <body>
+        <nav class="navbar">
+            <a class="brand" href="/">ESP32-CAM</a>
+            <a href="/">Player</a>
+            <a href="/settings">Settings</a>
+            <a href="/camera" class="active">Camera</a>
+        </nav>
         <section class="main">
             <div id="logo">
                 <label for="nav-toggle-cb" id="nav-toggle">&#9776;&nbsp;&nbsp;Toggle OV2640 settings</label>

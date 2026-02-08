@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>ESP32-CAM Settings</title>
+    <link rel="stylesheet" href="/common.css">
+</head>
+<body>
+    <nav class="navbar">
+        <a class="brand" href="/">ESP32-CAM</a>
+        <a href="/">Player</a>
+        <a href="/settings" class="active">Settings</a>
+        <a href="/camera">Camera</a>
+    </nav>
+    <div class="container">
+        <h1 class="page-title">ESP32-CAM Settings</h1>
+
+        <div class="card">
+            <h2>Connection Status</h2>
+            <p class="info" id="conn-status">Loading...</p>
+        </div>
+
+        <div class="card">
+            <h2>WiFi Configuration</h2>
+            <form id="settings-form" action="/settings_save" method="post">
+                <label>SSID</label>
+                <input type="text" name="ssid" id="ssid-input" maxlength="63">
+                <label>Password <span class="toggle" onclick="var p=document.getElementById('pw');p.type=p.type==='password'?'text':'password';">(show/hide)</span></label>
+                <input type="password" id="pw" name="pass" maxlength="63" placeholder="Enter WiFi password">
+        </div>
+
+        <div class="card">
+            <h2>Settings Password</h2>
+                <label>Password <span class="toggle" onclick="var p=document.getElementById('ap');p.type=p.type==='password'?'text':'password';">(show/hide)</span></label>
+                <input type="password" id="ap" name="admin_pass" maxlength="63" placeholder="Leave empty to disable">
+                <p class="info">Protects Settings, Camera Settings, OTA, and Boot Partition pages.</p>
+                <button type="submit">Save &amp; Reboot</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h2>Microphone Gain</h2>
+            <label>Gain: <span id="gv">4</span></label>
+            <input type="range" id="mic-gain" min="1" max="32" value="4"
+                oninput="document.getElementById('gv').textContent=this.value;fetch('/control?var=mic_gain&val='+this.value);">
+        </div>
+
+        <div class="card">
+            <h2>Boot Partition</h2>
+            <p class="info" id="part-info">Loading...</p>
+            <button onclick="fetch('/switch_boot').then(function(r){return r.text();}).then(function(t){alert(t);location.reload();})">Switch Boot Partition</button>
+        </div>
+
+        <div class="card">
+            <h2>Firmware Update</h2>
+            <input type="file" id="fw" accept=".bin">
+            <button onclick="doUpdate()">Upload Firmware</button>
+            <div id="up" style="margin-top:8px;font-size:0.85em;"></div>
+        </div>
+    </div>
+    <script>
+    fetch('/api/info').then(function(r){return r.json();}).then(function(d){
+        document.getElementById('conn-status').textContent =
+            'IP: '+d.ip+' | Mode: '+d.wifi_mode+' | SSID: '+d.ssid+' | RSSI: '+d.rssi+' dBm';
+        document.getElementById('ssid-input').value = d.ssid;
+        document.getElementById('mic-gain').value = d.mic_gain;
+        document.getElementById('gv').textContent = d.mic_gain;
+        document.getElementById('part-info').innerHTML =
+            'Running: <b>'+d.running_partition+'</b> | Next boot: <b>'+d.boot_partition+'</b>';
+    });
+
+    function doUpdate(){
+        var f=document.getElementById('fw').files[0];
+        if(!f){document.getElementById('up').textContent='Select a .bin file first';return;}
+        var u=document.getElementById('up');
+        u.textContent='Uploading...';
+        var x=new XMLHttpRequest();
+        x.open('POST','/update');
+        x.onload=function(){u.textContent=x.status==200?'Success! Rebooting...':'Error: '+x.responseText;};
+        x.onerror=function(){u.textContent='Upload failed';};
+        x.upload.onprogress=function(e){if(e.lengthComputable)u.textContent='Uploading: '+Math.round(e.loaded/e.total*100)+'%';};
+        x.send(f);
+    }
+    </script>
+</body>
+</html>
