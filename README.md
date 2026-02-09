@@ -99,7 +99,43 @@ If Auto copnnection method specified and the saved network is unreachable (60s t
 | `http://<ip>:81/stream` | Raw MJPEG video stream |
 | `http://<ip>:82/audio` | Raw WAV audio stream |
 
-An optional password can protect the settings panel. Set it under the Password tab. Authentication uses HTTP Basic Auth.
+### Player
+
+Live MJPEG video with Web Audio playback. Click the video to play/pause, hover to reveal the volume slider.
+
+![Player](/img/playback.png)
+
+### Settings Panel
+
+Click the gear icon to open the settings panel. It slides over the player so the stream keeps running while you adjust settings. The panel has tabs for each section:
+
+**Status** -- Network info, system stats (heap, PSRAM, SPIFFS), camera/audio details, and partition info.
+
+![Status tab](/img/config-status.png)
+
+**WiFi** -- SSID, password, connection mode (Auto/STA/AP), hostname, and WiFi network scan.
+
+![WiFi tab](/img/config-wifi.png)
+
+**Audio** -- Microphone gain, sample rate, and WAV bit depth. Changes restart the audio stream automatically.
+
+![Audio tab](/img/config-audio.png)
+
+**Camera** -- Resolution, JPEG quality, brightness, contrast, saturation, and auto-controls (AWB, AEC, AGC). Sensor-adaptive -- controls adjust based on detected sensor (OV2640, OV3660, OV5640).
+
+![Camera tab](/img/config-camera.png)
+
+**Flash** -- LED flash intensity control with option to enable the LED during streaming.
+
+![Flash tab](/img/config-led-flash.png)
+
+**Password** -- Optional password to protect the settings panel. Leave empty to disable.
+
+![Password tab](/img/config-password.png)
+
+**Firmware** -- OTA firmware upload, boot partition switching, device reboot, and factory reset.
+
+![Firmware tab](/img/config-firmware.png)
 
 ## go2rtc Integration
 
