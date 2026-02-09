@@ -88,7 +88,7 @@ On first boot (no saved WiFi credentials), the device starts in **AP mode**:
 
 Connect to the AP, open `http://192.168.4.1`, configure your WiFi credentials, and save. The device reboots and connects to your network.
 
-In Auto mode, the device tries to connect to the saved network for 3 minutes. If it fails, it switches to AP mode with no further reconnection attempts — reboot to retry.
+In Auto mode, the device tries to connect to the saved network for 1 minute. If it fails, it switches to AP mode with no further reconnection attempts — reboot to retry.
 
 ## Web Interface
 

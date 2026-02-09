@@ -43,7 +43,7 @@ static int64_t last_reconnect_attempt = 0;
 static const int64_t RECONNECT_INTERVAL = 60000; // ms
 
 static int s_retry_num = 0;
-static bool s_initial_connect = false;
+#define MAX_RETRY 3
 
 static void wifi_event_handler(void *arg, esp_event_base_t event_base,
                                 int32_t event_id, void *event_data)
@@ -54,12 +54,12 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
         wifi_event_sta_disconnected_t *disconn = (wifi_event_sta_disconnected_t *)event_data;
         ESP_LOGW(TAG, "WiFi disconnected, reason: %d", disconn->reason);
         xEventGroupClearBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
-        if (s_initial_connect) {
-            // During initial boot window — keep retrying until timeout
-            esp_wifi_connect();
+        if (s_retry_num < MAX_RETRY) {
             s_retry_num++;
-            ESP_LOGI(TAG, "Retry WiFi connection (%d)", s_retry_num);
+            ESP_LOGI(TAG, "Retry WiFi connection (%d/%d)", s_retry_num, MAX_RETRY);
+            esp_wifi_connect();
         } else {
+            ESP_LOGW(TAG, "All %d connection attempts failed", MAX_RETRY);
             xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
         }
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
@@ -365,7 +365,7 @@ void initWiFi(void)
         return;
     }
 
-    // Try STA connection (unlimited retries for 3 minutes)
+    // Try STA connection (3 attempts)
     ESP_LOGI(TAG, "Connecting to WiFi '%s' (pass_len: %d)...", stored_ssid, (int)strlen(stored_password));
 
     wifi_config_t sta_config = {0};
@@ -375,19 +375,17 @@ void initWiFi(void)
     sta_config.sta.pmf_cfg.capable = true;
     sta_config.sta.pmf_cfg.required = false;
 
-    s_initial_connect = true;
+    s_retry_num = 0;
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &sta_config));
     ESP_ERROR_CHECK(esp_wifi_start());
 
-    // Wait for connection (up to 3 minutes, retries are unlimited during this window)
+    // Wait for connection or 3 failed attempts (60s safety timeout)
     EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
-                        WIFI_CONNECTED_BIT,
+                        WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
                         pdFALSE, pdFALSE,
-                        pdMS_TO_TICKS(180000));
-
-    s_initial_connect = false;
+                        pdMS_TO_TICKS(60000));
 
     if (bits & WIFI_CONNECTED_BIT) {
         ESP_LOGI(TAG, "WiFi connected");
@@ -400,7 +398,7 @@ void initWiFi(void)
         last_reconnect_attempt = esp_timer_get_time() / 1000;
     } else {
         // Auto mode: give up on STA, switch to AP-only
-        ESP_LOGW(TAG, "WiFi connection failed after 3 min, switching to AP mode");
+        ESP_LOGW(TAG, "WiFi connection failed, switching to AP mode");
         esp_wifi_stop();
         start_ap_mode();
     }

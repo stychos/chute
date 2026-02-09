@@ -21,8 +21,8 @@
 #define SAMPLE_BITS       32
 // XIAO_ESP32S3:
 // #define SAMPLE_BITS    16
-#define DMA_BUF_COUNT     32
-#define DMA_BUF_LEN       1024
+#define DMA_BUF_COUNT     8
+#define DMA_BUF_LEN       4096
 
 struct WAVHeader {
     char chunkId[4];
