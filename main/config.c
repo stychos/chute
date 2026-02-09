@@ -1,4 +1,4 @@
-#include "settings_manager.h"
+#include "config.h"
 
 #include <string.h>
 #include "esp_log.h"

@@ -14,7 +14,7 @@
 #include "freertos/task.h"
 
 #include "camera_pins.h"
-#include "settings_manager.h"
+#include "config.h"
 #include "http_ui.h"
 #include "http_camera.h"
 #include "http_video_stream.h"

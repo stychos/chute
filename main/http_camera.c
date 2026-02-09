@@ -1,6 +1,6 @@
 #include "http_camera.h"
 #include "http_ui.h"
-#include "settings_manager.h"
+#include "config.h"
 
 #include <string.h>
 #include <stdio.h>

@@ -15,7 +15,7 @@
 #include "http_ui.h"
 #include "http_camera.h"
 #include "http_firmware.h"
-#include "settings_manager.h"
+#include "config.h"
 #include "http_audio_stream.h"
 
 #include <string.h>
