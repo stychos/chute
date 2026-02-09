@@ -129,7 +129,8 @@ static void audio_stream_task(void *arg)
         goto done;
     }
 
-    ESP_LOGI(TAG, "Audio stream started");
+    ESP_LOGI(TAG, "Audio stream started (I2S port %d, rate %d, wav_bits %d, gain %d)",
+             I2S_MIC_PORT, stored_sample_rate, stored_wav_bits, mic_gain);
 
     int sample_rate = stored_sample_rate;
     int wav_bits = stored_wav_bits;
@@ -142,10 +143,9 @@ static void audio_stream_task(void *arg)
     httpd_resp_set_hdr(req, "Accept-Ranges", "none");
     httpd_resp_set_hdr(req, "Cache-Control", "no-cache, no-store");
 
-    // Send WAV header as first chunk
     err = httpd_resp_send_chunk(req, (const char *)&wav_header, sizeof(wav_header));
     if (err != ESP_OK) {
-        ESP_LOGW(TAG, "Failed to send WAV header");
+        ESP_LOGW(TAG, "Failed to send WAV header: %s", esp_err_to_name(err));
         i2s_channel_disable(rx_handle);
         goto done;
     }
@@ -153,11 +153,13 @@ static void audio_stream_task(void *arg)
     uint8_t i2s_buffer[DMA_BUF_LEN];
     uint8_t out_buffer[DMA_BUF_LEN];
     size_t bytes_read = 0;
+    int chunk_count = 0;
 
     while (!s_audio_stop) {
         esp_err_t rd = i2s_channel_read(rx_handle, i2s_buffer, sizeof(i2s_buffer),
                                          &bytes_read, pdMS_TO_TICKS(1000));
         if (rd == ESP_ERR_TIMEOUT) {
+            ESP_LOGW(TAG, "I2S read timeout");
             continue;
         }
         if (rd != ESP_OK) {
@@ -166,6 +168,7 @@ static void audio_stream_task(void *arg)
         }
 
         if (bytes_read > 0) {
+            chunk_count++;
             size_t out_bytes;
             if (SAMPLE_BITS == 32 && wav_bits == 24) {
                 // 32-bit I2S → 24-bit PCM (3 bytes per sample, little-endian)
@@ -207,7 +210,7 @@ static void audio_stream_task(void *arg)
             }
             err = httpd_resp_send_chunk(req, (const char *)out_buffer, out_bytes);
             if (err != ESP_OK) {
-                ESP_LOGI(TAG, "Audio client disconnected");
+                ESP_LOGI(TAG, "Audio client disconnected at chunk #%d", chunk_count);
                 break;
             }
         }

@@ -19,17 +19,38 @@
       </div>
 
       <!-- Video + audio player -->
-      <div v-if="stream.hasCamera.value" class="bg-black rounded-lg overflow-hidden relative w-full"
-        :style="{ aspectRatio: stream.camWidth.value + '/' + stream.camHeight.value, maxWidth: stream.camWidth.value + 'px' }">
-        <div v-if="!stream.playing.value" class="absolute inset-0 flex items-center justify-center text-text-dim text-lg">Stopped</div>
+      <div v-if="stream.hasCamera.value" class="group bg-black rounded-lg overflow-hidden relative w-full cursor-pointer"
+        :style="{ aspectRatio: stream.camWidth.value + '/' + stream.camHeight.value, maxWidth: stream.camWidth.value + 'px' }"
+        @click="stream.togglePlay()">
         <img v-show="stream.playing.value" ref="vidEl" class="w-full h-full object-contain" alt="Video">
-        <audio v-if="stream.hasMic.value" v-show="stream.playing.value" ref="audEl" controls class="absolute bottom-2 left-[5%] w-[90%]"></audio>
+        <!-- Play overlay when stopped -->
+        <div v-if="!stream.playing.value" class="absolute inset-0 flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 text-white/70" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M8 5v14l11-7z" />
+          </svg>
+        </div>
+        <!-- Pause overlay on hover when playing -->
+        <div v-if="stream.playing.value" class="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 text-white/70" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+          </svg>
+        </div>
+        <input v-if="stream.hasMic.value && stream.playing.value" type="range"
+          min="0" max="1" step="0.05" :value="stream.volume.value"
+          @input="stream.setVolume(+$event.target.value)"
+          @click.stop
+          class="absolute bottom-3 left-[5%] w-[90%] accent-accent cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity z-10"
+          title="Volume">
       </div>
 
       <!-- Audio-only view when no camera -->
-      <div v-else-if="stream.hasMic.value" class="bg-card rounded-lg p-8 flex flex-col items-center">
-        <audio v-show="stream.playing.value" ref="audEl" controls class="w-full max-w-md"></audio>
+      <div v-else-if="stream.hasMic.value" class="bg-card rounded-lg p-8 flex flex-col items-center gap-4">
         <p v-if="!stream.playing.value" class="text-text-dim">Audio Only</p>
+        <input v-if="stream.playing.value" type="range"
+          min="0" max="1" step="0.05" :value="stream.volume.value"
+          @input="stream.setVolume(+$event.target.value)"
+          class="w-full max-w-md accent-accent cursor-pointer"
+          title="Volume">
       </div>
 
       <!-- No hardware -->
@@ -57,14 +78,13 @@ import { useStreamController } from '../composables/useStreamController.js'
 const route = useRoute()
 const stream = useStreamController()
 const vidEl = ref(null)
-const audEl = ref(null)
 const hwDismissed = ref(false)
 
 const configOpen = computed(() => route.path.startsWith('/config'))
 
 onMounted(async () => {
   await stream.init()
-  stream.registerElements(vidEl, audEl)
+  stream.registerElements(vidEl)
 })
 
 onUnmounted(() => {

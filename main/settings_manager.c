@@ -382,9 +382,10 @@ void initWiFi(void)
                         pdFALSE, pdFALSE,
                         pdMS_TO_TICKS(60000));
 
+    esp_wifi_set_ps(WIFI_PS_NONE);
+
     if (bits & WIFI_CONNECTED_BIT) {
         ESP_LOGI(TAG, "WiFi connected");
-        esp_wifi_set_ps(WIFI_PS_NONE);
         wifi_ap_active = false;
     } else if (strcmp(stored_wifi_mode, "sta") == 0) {
         // STA-only mode: no AP fallback, keep retrying
@@ -434,6 +435,7 @@ void wifiReconnectCheck(void)
     if ((bits & WIFI_CONNECTED_BIT) && wifi_ap_active) {
         ESP_LOGI(TAG, "WiFi reconnected, stopping AP...");
         ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+        esp_wifi_set_ps(WIFI_PS_NONE);
         wifi_ap_active = false;
         reconnect_in_progress = false;
         char ip_str[16];

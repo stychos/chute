@@ -196,6 +196,7 @@ esp_err_t firmware_upload_handler(httpd_req_t *req)
             }
             offset += r;
             remaining -= r;
+            if ((offset & 0xFFFF) < (unsigned)r) vTaskDelay(1); // yield every ~64KB to feed watchdog
         }
 
         // Remount SPIFFS
