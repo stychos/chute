@@ -110,7 +110,8 @@ async function playAudio() {
     // Strip header, keep any extra audio bytes
     pending = pending.slice(44)
 
-    let schedTime = audioCtx.currentTime
+    // Start scheduling 200ms ahead to absorb network jitter
+    let schedTime = audioCtx.currentTime + 0.2
 
     // Main decode + schedule loop
     while (true) {

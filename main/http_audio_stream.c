@@ -258,7 +258,7 @@ static esp_err_t audio_stream_handler(httpd_req_t *req)
     }
 
     // Spawn streaming in a dedicated FreeRTOS task
-    BaseType_t ret = xTaskCreate(audio_stream_task, "aud_stream", 5120,
+    BaseType_t ret = xTaskCreate(audio_stream_task, "aud_stream", 12288,
                                  async_req, 5, (TaskHandle_t *)&s_audio_task);
     if (ret != pdPASS) {
         ESP_LOGE(TAG, "Failed to create audio stream task");
