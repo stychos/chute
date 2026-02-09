@@ -270,6 +270,20 @@ static esp_err_t audio_stream_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+void stop_audio_stream(void)
+{
+    if (s_audio_task) {
+        s_audio_stop = true;
+        for (int i = 0; i < 30 && s_audio_task; i++) {
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+    }
+    if (rx_handle) {
+        i2s_del_channel(rx_handle);
+        rx_handle = NULL;
+    }
+}
+
 void start_http_audio_stream(void)
 {
     // Initialize I2S once at startup

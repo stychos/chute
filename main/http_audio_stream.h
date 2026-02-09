@@ -41,4 +41,5 @@ struct WAVHeader {
 };
 
 void start_http_audio_stream(void);
+void stop_audio_stream(void);
 void mic_i2s_reinit(void);

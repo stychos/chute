@@ -17,6 +17,7 @@
 #include "http_firmware.h"
 #include "config.h"
 #include "http_audio_stream.h"
+#include "http_video_stream.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -28,6 +29,7 @@
 #include "esp_log.h"
 #include "esp_ota_ops.h"
 #include "esp_system.h"
+#include "esp_camera.h"
 #include "esp_chip_info.h"
 #include "esp_psram.h"
 #include "esp_spiffs.h"
@@ -53,6 +55,18 @@ static int led_pin = -1;
 bool isStreaming = false;
 bool camera_available = false;
 bool mic_available = false;
+
+// ---------- Safe Restart ----------
+
+void safe_restart(void)
+{
+    ESP_LOGI(TAG, "Shutting down before restart...");
+    stop_video_stream();
+    stop_audio_stream();
+    esp_camera_deinit();
+    vTaskDelay(pdMS_TO_TICKS(100));
+    esp_restart();
+}
 
 // ---------- LED ----------
 
@@ -389,6 +403,11 @@ static esp_err_t api_wifi_config_handler(httpd_req_t *req)
     const char *ap_password = cjson_get_string(root, "ap_password");
     const char *hostname = cjson_get_string(root, "hostname");
 
+    ESP_LOGI(TAG, "WiFi config: ssid='%s', pass_len=%d, mode='%s'",
+             ssid ? ssid : "(null)",
+             password ? (int)strlen(password) : -1,
+             wifi_mode ? wifi_mode : "(null)");
+
     if ((!ssid || ssid[0] == '\0') && (!wifi_mode || strcmp(wifi_mode, "ap") != 0)) {
         cJSON_Delete(root);
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "SSID required");
@@ -409,7 +428,7 @@ static esp_err_t api_wifi_config_handler(httpd_req_t *req)
     send_json(req, resp);
 
     vTaskDelay(pdMS_TO_TICKS(1000));
-    esp_restart();
+    safe_restart();
     return ESP_OK;
 }
 
@@ -618,7 +637,7 @@ static esp_err_t api_system_reboot_handler(httpd_req_t *req)
     httpd_resp_send(req, "{\"ok\":true}", HTTPD_RESP_USE_STRLEN);
 
     vTaskDelay(pdMS_TO_TICKS(500));
-    esp_restart();
+    safe_restart();
     return ESP_OK;
 }
 
@@ -632,7 +651,7 @@ static esp_err_t api_system_reset_handler(httpd_req_t *req)
 
     vTaskDelay(pdMS_TO_TICKS(500));
     eraseAllSettings();
-    esp_restart();
+    safe_restart();
     return ESP_OK;
 }
 

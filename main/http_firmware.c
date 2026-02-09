@@ -135,7 +135,7 @@ esp_err_t firmware_upload_handler(httpd_req_t *req)
         httpd_resp_send(req, "{\"ok\":true,\"type\":\"firmware\"}", HTTPD_RESP_USE_STRLEN);
 
         vTaskDelay(pdMS_TO_TICKS(1000));
-        esp_restart();
+        safe_restart();
         return ESP_OK;
 
     } else {

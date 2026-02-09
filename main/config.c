@@ -38,15 +38,12 @@ static EventGroupHandle_t s_wifi_event_group;
 static esp_netif_t *sta_netif = NULL;
 static esp_netif_t *ap_netif = NULL;
 
-// Reconnect state
+// Reconnect state (STA-only mode)
 static int64_t last_reconnect_attempt = 0;
 static const int64_t RECONNECT_INTERVAL = 60000; // ms
-static const int64_t RECONNECT_TIMEOUT = 10000;  // ms
-static bool reconnect_in_progress = false;
-static int64_t reconnect_start_time = 0;
 
 static int s_retry_num = 0;
-#define MAX_RETRY 10
+static bool s_initial_connect = false;
 
 static void wifi_event_handler(void *arg, esp_event_base_t event_base,
                                 int32_t event_id, void *event_data)
@@ -54,11 +51,14 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base,
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
         esp_wifi_connect();
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+        wifi_event_sta_disconnected_t *disconn = (wifi_event_sta_disconnected_t *)event_data;
+        ESP_LOGW(TAG, "WiFi disconnected, reason: %d", disconn->reason);
         xEventGroupClearBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
-        if (s_retry_num < MAX_RETRY) {
+        if (s_initial_connect) {
+            // During initial boot window — keep retrying until timeout
             esp_wifi_connect();
             s_retry_num++;
-            ESP_LOGI(TAG, "Retry WiFi connection (%d/%d)", s_retry_num, MAX_RETRY);
+            ESP_LOGI(TAG, "Retry WiFi connection (%d)", s_retry_num);
         } else {
             xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
         }
@@ -137,8 +137,8 @@ void loadSettings(void)
     if (mic_gain < 1) mic_gain = 1;
     if (mic_gain > 32) mic_gain = 32;
 
-    ESP_LOGI(TAG, "Settings loaded - SSID: '%s', mic_gain: %d, wifi_mode: '%s', ap_ssid: '%s'",
-        stored_ssid, mic_gain, stored_wifi_mode, stored_ap_ssid);
+    ESP_LOGI(TAG, "Settings loaded - SSID: '%s', pass_len: %d, mic_gain: %d, wifi_mode: '%s', ap_ssid: '%s'",
+        stored_ssid, (int)strlen(stored_password), mic_gain, stored_wifi_mode, stored_ap_ssid);
 }
 
 void saveWiFiCredentials(const char *ssid, const char *password)
@@ -156,7 +156,7 @@ void saveWiFiCredentials(const char *ssid, const char *password)
         nvs_close(handle);
     }
 
-    ESP_LOGI(TAG, "WiFi credentials saved - SSID: '%s'", stored_ssid);
+    ESP_LOGI(TAG, "WiFi credentials saved - SSID: '%s', pass_len: %d", stored_ssid, (int)strlen(stored_password));
 }
 
 void saveMicGain(int gain)
@@ -365,105 +365,70 @@ void initWiFi(void)
         return;
     }
 
-    // Try STA connection
-    ESP_LOGI(TAG, "Connecting to WiFi '%s'...", stored_ssid);
+    // Try STA connection (unlimited retries for 3 minutes)
+    ESP_LOGI(TAG, "Connecting to WiFi '%s' (pass_len: %d)...", stored_ssid, (int)strlen(stored_password));
 
     wifi_config_t sta_config = {0};
     strncpy((char *)sta_config.sta.ssid, stored_ssid, sizeof(sta_config.sta.ssid) - 1);
     strncpy((char *)sta_config.sta.password, stored_password, sizeof(sta_config.sta.password) - 1);
+    sta_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
+    sta_config.sta.pmf_cfg.capable = true;
+    sta_config.sta.pmf_cfg.required = false;
 
+    s_initial_connect = true;
+    ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &sta_config));
     ESP_ERROR_CHECK(esp_wifi_start());
 
-    // Wait for connection or failure (up to 60s)
+    // Wait for connection (up to 3 minutes, retries are unlimited during this window)
     EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
-                        WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
+                        WIFI_CONNECTED_BIT,
                         pdFALSE, pdFALSE,
-                        pdMS_TO_TICKS(60000));
+                        pdMS_TO_TICKS(180000));
 
-    esp_wifi_set_ps(WIFI_PS_NONE);
+    s_initial_connect = false;
 
     if (bits & WIFI_CONNECTED_BIT) {
         ESP_LOGI(TAG, "WiFi connected");
+        esp_wifi_set_ps(WIFI_PS_NONE);
         wifi_ap_active = false;
     } else if (strcmp(stored_wifi_mode, "sta") == 0) {
-        // STA-only mode: no AP fallback, keep retrying
+        // STA-only mode: no AP fallback, keep retrying periodically
         ESP_LOGW(TAG, "WiFi connection failed (STA-only mode), will keep retrying...");
         wifi_ap_active = false;
-        s_retry_num = 0;
         last_reconnect_attempt = esp_timer_get_time() / 1000;
     } else {
-        // Auto mode: fallback to AP+STA
-        ESP_LOGW(TAG, "WiFi connection failed, starting AP+STA fallback...");
-
-        wifi_config_t ap_config = {
-            .ap = {
-                .ssid_len = 0,
-                .password = "",
-                .max_connection = 4,
-                .authmode = WIFI_AUTH_OPEN,
-            },
-        };
-        strncpy((char *)ap_config.ap.ssid, stored_ap_ssid, sizeof(ap_config.ap.ssid) - 1);
-        if (strlen(stored_ap_password) >= 8) {
-            strncpy((char *)ap_config.ap.password, stored_ap_password, sizeof(ap_config.ap.password) - 1);
-            ap_config.ap.authmode = WIFI_AUTH_WPA2_PSK;
-        }
-        ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
-        ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));
-        wifi_ap_active = true;
-        s_retry_num = 0; // Reset for reconnect attempts
-
-        esp_netif_ip_info_t ip_info;
-        esp_netif_get_ip_info(ap_netif, &ip_info);
-        ESP_LOGI(TAG, "AP IP address: " IPSTR, IP2STR(&ip_info.ip));
-        last_reconnect_attempt = esp_timer_get_time() / 1000;
+        // Auto mode: give up on STA, switch to AP-only
+        ESP_LOGW(TAG, "WiFi connection failed after 3 min, switching to AP mode");
+        esp_wifi_stop();
+        start_ap_mode();
     }
 }
 
 void wifiReconnectCheck(void)
 {
-    // No reconnect in AP-only mode or without credentials
-    if (strcmp(stored_wifi_mode, "ap") == 0) return;
+    // Only STA-only mode uses periodic reconnection.
+    // Auto mode goes to AP on failure; AP mode is already AP.
+    if (strcmp(stored_wifi_mode, "sta") != 0) return;
     if (strlen(stored_ssid) == 0) return;
 
-    int64_t now = esp_timer_get_time() / 1000; // ms
     EventBits_t bits = xEventGroupGetBits(s_wifi_event_group);
-
-    // If connected and in APSTA fallback, drop AP
-    if ((bits & WIFI_CONNECTED_BIT) && wifi_ap_active) {
-        ESP_LOGI(TAG, "WiFi reconnected, stopping AP...");
-        ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-        esp_wifi_set_ps(WIFI_PS_NONE);
-        wifi_ap_active = false;
-        reconnect_in_progress = false;
-        char ip_str[16];
-        get_current_ip_str(ip_str, sizeof(ip_str));
-        ESP_LOGI(TAG, "IP address: %s", ip_str);
-        return;
-    }
 
     // Already connected, nothing to do
     if (bits & WIFI_CONNECTED_BIT) return;
 
-    if (reconnect_in_progress) {
-        if (now - reconnect_start_time >= RECONNECT_TIMEOUT) {
-            ESP_LOGI(TAG, "Reconnect timed out, will retry...");
-            reconnect_in_progress = false;
-            last_reconnect_attempt = now;
-        }
-        return;
-    }
+    // Not failed yet — event handler is still retrying
+    if (!(bits & WIFI_FAIL_BIT)) return;
 
+    int64_t now = esp_timer_get_time() / 1000; // ms
     if (now - last_reconnect_attempt < RECONNECT_INTERVAL) return;
 
     ESP_LOGI(TAG, "Attempting WiFi reconnect to '%s'...", stored_ssid);
     s_retry_num = 0;
-    xEventGroupClearBits(s_wifi_event_group, WIFI_CONNECTED_BIT | WIFI_FAIL_BIT);
+    xEventGroupClearBits(s_wifi_event_group, WIFI_FAIL_BIT);
     esp_wifi_connect();
-    reconnect_in_progress = true;
-    reconnect_start_time = now;
+    last_reconnect_attempt = now;
 }
 
 // ---------- Helpers ----------

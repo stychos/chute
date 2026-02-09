@@ -197,6 +197,16 @@ static esp_err_t stream_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+void stop_video_stream(void)
+{
+    if (s_stream_task) {
+        s_stream_stop = true;
+        for (int i = 0; i < 30 && s_stream_task; i++) {
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+    }
+}
+
 void start_http_video_stream(void)
 {
     ra_filter_init(&ra_filter, 20);

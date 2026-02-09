@@ -6,6 +6,7 @@
 void start_http_ui(void);
 void setupLedFlash(int pin);
 void enable_led(bool en);
+void safe_restart(void);
 
 // Auth/CORS helpers (shared with http_camera.c, http_firmware.c)
 bool check_auth(httpd_req_t *req);
