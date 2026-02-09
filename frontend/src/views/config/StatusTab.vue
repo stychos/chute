@@ -6,7 +6,16 @@
         <span class="text-text-dim">IP Address</span><span>{{ data.ip || '...' }}</span>
         <span class="text-text-dim">WiFi Mode</span><span>{{ data.wifi_mode || '...' }}</span>
         <span class="text-text-dim">SSID</span><span>{{ data.ssid || '...' }}</span>
-        <span class="text-text-dim">RSSI</span><span>{{ data.rssi != null ? data.rssi + ' dBm' : '...' }}</span>
+        <span class="text-text-dim">RSSI</span>
+        <span class="inline-flex items-baseline gap-2">
+          {{ data.rssi != null ? data.rssi + ' dBm' : '...' }}
+          <svg v-if="data.rssi != null" width="16" height="14" viewBox="0 0 16 14" class="shrink-0">
+            <rect x="0"  y="10" width="3" height="4" rx="0.5" :class="data.rssi > -90 ? 'fill-current' : 'fill-text-dim opacity-30'" />
+            <rect x="4.5"  y="7" width="3" height="7" rx="0.5" :class="data.rssi > -70 ? 'fill-current' : 'fill-text-dim opacity-30'" />
+            <rect x="9" y="3.5" width="3" height="10.5" rx="0.5" :class="data.rssi > -55 ? 'fill-current' : 'fill-text-dim opacity-30'" />
+            <rect x="13" y="0" width="3" height="14" rx="0.5" :class="data.rssi > -40 ? 'fill-current' : 'fill-text-dim opacity-30'" />
+          </svg>
+        </span>
         <span class="text-text-dim">WiFi Preference</span><span>{{ data.wifi_mode_pref || '...' }}</span>
       </div>
     </div>
