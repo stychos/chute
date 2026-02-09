@@ -227,7 +227,7 @@ static esp_err_t serve_spiffs_file(httpd_req_t *req, const char *filename)
     if (gzipped) {
         httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
     }
-    httpd_resp_set_hdr(req, "Cache-Control", "max-age=86400");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
 
     char buf[1024];
     size_t n;

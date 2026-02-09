@@ -19,11 +19,13 @@ const camHeight = ref(480)
 const hwWarning = ref('')
 const hostname = ref('chute')
 const volume = ref(0.8)
+const snapshotUrl = ref('')
 
 let vUrl = ''
 let aUrl = ''
 let vidEl = null
 let initialized = false
+let snapshotInterval = null
 
 // Web Audio API state
 let audioCtx = null
@@ -52,6 +54,8 @@ async function init() {
         const dims = FRAME_DIMS[st.framesize]
         if (dims) { camWidth.value = dims[0]; camHeight.value = dims[1] }
       } catch (e) { console.warn('[video] camera status fetch failed', e) }
+      fetchSnapshot()
+      startSnapshotTimer()
     }
   } catch (e) {
     console.error('[stream] Failed to load stream info', e)
@@ -64,6 +68,7 @@ function registerElements(vid) {
 
 function unregisterElements() {
   stop()
+  stopSnapshotTimer()
   vidEl = null
 }
 
@@ -171,13 +176,30 @@ function stopAudio() {
 
 // --- Public API ---
 
+function fetchSnapshot() {
+  if (!hasCamera.value) return
+  snapshotUrl.value = '/api/camera/capture?t=' + Date.now()
+}
+
+function startSnapshotTimer() {
+  stopSnapshotTimer()
+  snapshotInterval = setInterval(fetchSnapshot, 30000)
+}
+
+function stopSnapshotTimer() {
+  if (snapshotInterval) { clearInterval(snapshotInterval); snapshotInterval = null }
+}
+
 function stop() {
   if (vidEl?.value) vidEl.value.src = ''
   stopAudio()
   playing.value = false
+  fetchSnapshot()
+  startSnapshotTimer()
 }
 
 function play() {
+  stopSnapshotTimer()
   if (hasCamera.value && vidEl?.value) {
     vidEl.value.src = vUrl
   }
@@ -225,7 +247,7 @@ function setVolume(v) {
 
 export function useStreamController() {
   return {
-    playing, hasCamera, hasMic, camWidth, camHeight, hwWarning, hostname, volume,
+    playing, hasCamera, hasMic, camWidth, camHeight, hwWarning, hostname, volume, snapshotUrl,
     init, registerElements, unregisterElements,
     play, stop, togglePlay,
     restartVideo, restartAudio, updateFrameDims, setVolume,

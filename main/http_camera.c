@@ -305,10 +305,14 @@ esp_err_t camera_capture_handler(httpd_req_t *req)
     esp_err_t res = ESP_OK;
     int64_t fr_start = esp_timer_get_time();
 
-    enable_led(true);
-    vTaskDelay(pdMS_TO_TICKS(150));
+    if (led_stream_enabled) {
+        enable_led(true);
+        vTaskDelay(pdMS_TO_TICKS(150));
+    }
     fb = esp_camera_fb_get();
-    enable_led(false);
+    if (led_stream_enabled && !led_on) {
+        enable_led(false);
+    }
 
     if (!fb) {
         ESP_LOGE(TAG, "Camera capture failed");

@@ -38,10 +38,12 @@
     <div class="bg-card rounded-lg p-4">
       <h2 class="text-accent text-sm font-semibold mb-3">OTA Update</h2>
       <p class="text-xs text-text-dim mb-3">Upload a firmware (.bin) or SPIFFS image — file type is auto-detected.</p>
-      <div class="flex gap-2 items-center">
-        <input type="file" ref="fileInput" accept=".bin" class="flex-1 min-w-0 text-sm text-text-dim
-          file:mr-3 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm
-          file:bg-accent file:text-white file:cursor-pointer hover:file:bg-accent-hover">
+      <input type="file" ref="fileInput" accept=".bin" class="hidden" @change="onFileChange">
+      <div class="flex items-center gap-2">
+        <button @click="fileInput?.click()" :disabled="uploading" class="shrink-0 bg-accent hover:bg-accent-hover text-white px-4 py-2 rounded text-sm transition-colors disabled:opacity-50">
+          Choose File
+        </button>
+        <span class="text-sm text-text-dim truncate min-w-0 flex-1">{{ fileName || 'No file selected' }}</span>
         <button @click="upload" :disabled="uploading" class="shrink-0 bg-accent hover:bg-accent-hover text-white px-4 py-2 rounded text-sm transition-colors disabled:opacity-50">
           {{ uploading ? 'Uploading...' : 'Upload' }}
         </button>
@@ -68,6 +70,7 @@ const rebootWatchdog = useRebootWatchdog()
 const info = ref({})
 const apSsid = ref('Chute-Setup')
 const fileInput = ref(null)
+const fileName = ref('')
 const uploading = ref(false)
 const progress = ref(-1)
 const uploadMsg = ref('')
@@ -133,6 +136,10 @@ async function resetDefaults() {
   }
 }
 
+function onFileChange() {
+  fileName.value = fileInput.value?.files?.[0]?.name || ''
+}
+
 function upload() {
   const file = fileInput.value?.files?.[0]
   if (!file) { uploadMsg.value = 'Select a .bin file first'; uploadErr.value = true; return }
@@ -145,7 +152,7 @@ function upload() {
   const xhr = new XMLHttpRequest()
   xhr.open('POST', '/api/firmware/upload')
 
-  const auth = localStorage.getItem('chute_auth')
+  const auth = sessionStorage.getItem('chute_auth')
   if (auth) xhr.setRequestHeader('Authorization', 'Basic ' + auth)
 
   xhr.upload.onprogress = (e) => {

@@ -23,6 +23,8 @@
         :style="{ aspectRatio: stream.camWidth.value + '/' + stream.camHeight.value, maxWidth: stream.camWidth.value + 'px' }"
         @click="stream.togglePlay()">
         <img v-show="stream.playing.value" ref="vidEl" class="w-full h-full object-contain" alt="Video">
+        <!-- Snapshot preview when stopped -->
+        <img v-if="!stream.playing.value && stream.snapshotUrl.value" :src="stream.snapshotUrl.value" class="w-full h-full object-contain opacity-60" alt="Preview">
         <!-- Play overlay when stopped -->
         <div v-if="!stream.playing.value" class="absolute inset-0 flex items-center justify-center">
           <svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16 text-white/70" viewBox="0 0 24 24" fill="currentColor">
@@ -44,11 +46,18 @@
       </div>
 
       <!-- Audio-only view when no camera -->
-      <div v-else-if="stream.hasMic.value" class="bg-card rounded-lg p-8 flex flex-col items-center gap-4">
+      <div v-else-if="stream.hasMic.value" class="bg-card rounded-lg p-8 flex flex-col items-center gap-4 cursor-pointer" @click="stream.togglePlay()">
+        <svg v-if="!stream.playing.value" xmlns="http://www.w3.org/2000/svg" class="w-12 h-12 text-text-dim" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M8 5v14l11-7z" />
+        </svg>
         <p v-if="!stream.playing.value" class="text-text-dim">Audio Only</p>
+        <svg v-if="stream.playing.value" xmlns="http://www.w3.org/2000/svg" class="w-12 h-12 text-text-dim" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+        </svg>
         <input v-if="stream.playing.value" type="range"
           min="0" max="1" step="0.05" :value="stream.volume.value"
           @input="stream.setVolume(+$event.target.value)"
+          @click.stop
           class="w-full max-w-md accent-accent cursor-pointer"
           title="Volume">
       </div>
@@ -56,12 +65,6 @@
       <!-- No hardware -->
       <div v-else class="bg-card rounded-lg p-8 text-center text-text-dim">
         No camera or microphone detected.
-      </div>
-
-      <div v-if="stream.hasCamera.value || stream.hasMic.value" class="flex justify-center mt-4">
-        <button @click="stream.togglePlay()" class="bg-accent hover:bg-accent-hover text-white px-8 py-2.5 rounded font-medium transition-colors">
-          {{ stream.playing.value ? 'Stop' : 'Play' }}
-        </button>
       </div>
     </div>
 

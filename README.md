@@ -29,12 +29,12 @@ The INMP441 runs on I2S port 1 (port 0 is used internally by the camera).
 
 ## Prerequisites
 
-- **[ESP-IDF v5.x](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/)** (tested with v5.5.2) -- the official Espressif IoT Development Framework. Follow the installation guide for your OS, then source the environment before running any build commands:
+- **[ESP-IDF v5.x](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/)** (tested with v5.5.2) — the official Espressif IoT Development Framework. Follow the installation guide for your OS, then source the environment before running any build commands:
   ```bash
   source ~/path-to-esp-idf/export.sh
   ```
-- **CMake 3.16+** -- included with ESP-IDF, but also required if building standalone
-- **Node.js 18+** and **npm** -- for building the frontend (Vue 3 + Vite)
+- **CMake 3.16+** — included with ESP-IDF, but also required if building standalone
+- **Node.js 18+** and **npm** — for building the frontend (Vue 3 + Vite)
 
 ## Build & Flash
 
@@ -67,7 +67,7 @@ The default target is AI-Thinker ESP32-CAM. To build for XIAO ESP32S3 Sense:
    target_compile_definitions(${COMPONENT_LIB} PRIVATE CAMERA_MODEL_XIAO_ESP32S3)
    ```
 
-2. **I2S config** in `main/http_audio_stream.h` -- swap the active defines:
+2. **I2S config** in `main/http_audio_stream.h` — swap the active defines:
 
    | Define | AI-Thinker | XIAO ESP32S3 |
    |--------|-----------|--------------|
@@ -77,7 +77,7 @@ The default target is AI-Thinker ESP32-CAM. To build for XIAO ESP32S3 Sense:
    | `I2S_MIC_PORT` | 1 | 0 |
    | `SAMPLE_BITS` | 32 | 16 |
 
-3. **I2S mode** in `main/http_audio_stream.c` -- use `driver/i2s_pdm.h` and `i2s_pdm_rx_config_t` for XIAO instead of I2S standard mode.
+3. **I2S mode** in `main/http_audio_stream.c` — use `driver/i2s_pdm.h` and `i2s_pdm_rx_config_t` for XIAO instead of I2S standard mode.
 
 ## First-Time Setup
 
@@ -88,7 +88,7 @@ On first boot (no saved WiFi credentials), the device starts in **AP mode**:
 
 Connect to the AP, open `http://192.168.4.1`, configure your WiFi credentials, and save. The device reboots and connects to your network.
 
-If Auto copnnection method specified and the saved network is unreachable (60s timeout), the device falls back to **AP+STA mode** -- it serves the AP while retrying the saved network every 60 seconds.
+If Auto copnnection method specified and the saved network is unreachable (60s timeout), the device falls back to **AP+STA mode** — it serves the AP while retrying the saved network every 60 seconds.
 
 ## Web Interface
 
@@ -101,39 +101,47 @@ If Auto copnnection method specified and the saved network is unreachable (60s t
 
 ### Player
 
-Live MJPEG video with Web Audio playback. Click the video to play/pause, hover to reveal the volume slider.
+When idle, the player shows a live camera snapshot (refreshed every 30 seconds). Click to start streaming.
 
-![Player](/img/playback.png)
+![Idle player with snapshot preview](/img/pause.png)
+
+During playback, hover to reveal the pause overlay and volume slider.
+
+![Active playback with pause overlay](/img/playback.png)
 
 ### Settings Panel
 
-Click the gear icon to open the settings panel. It slides over the player so the stream keeps running while you adjust settings. The panel has tabs for each section:
+Click the gear icon to open the settings panel. It slides over the player so the stream keeps running while you adjust settings. If a password is set, authentication is required.
 
-**Status** -- Network info, system stats (heap, PSRAM, SPIFFS), camera/audio details, and partition info.
+![Authentication prompt](/img/config-auth.png)
+
+The panel has tabs for each section:
+
+**Status** — Network info, system stats (heap, PSRAM, SPIFFS), camera/audio details, and partition info.
 
 ![Status tab](/img/config-status.png)
 
-**WiFi** -- SSID, password, connection mode (Auto/STA/AP), hostname, and WiFi network scan.
+**WiFi** — SSID, password, connection mode (Auto/STA/AP), hostname, and WiFi network scan.
 
 ![WiFi tab](/img/config-wifi.png)
 
-**Audio** -- Microphone gain, sample rate, and WAV bit depth. Changes restart the audio stream automatically.
+**Audio** — Microphone gain, sample rate, and WAV bit depth. Changes restart the audio stream automatically.
 
 ![Audio tab](/img/config-audio.png)
 
-**Camera** -- Resolution, JPEG quality, brightness, contrast, saturation, and auto-controls (AWB, AEC, AGC). Sensor-adaptive -- controls adjust based on detected sensor (OV2640, OV3660, OV5640).
+**Camera** — Resolution, JPEG quality, brightness, contrast, saturation, and auto-controls (AWB, AEC, AGC). Sensor-adaptive — controls adjust based on detected sensor (OV2640, OV3660, OV5640).
 
 ![Camera tab](/img/config-camera.png)
 
-**Flash** -- LED flash intensity control with option to enable the LED during streaming.
+**Flash** — LED flash intensity control with option to enable the LED during streaming.
 
 ![Flash tab](/img/config-led-flash.png)
 
-**Password** -- Optional password to protect the settings panel. Leave empty to disable.
+**Password** — Optional password to protect the settings panel. Leave empty to disable. Password is per-session — closing the browser tab requires re-authentication.
 
 ![Password tab](/img/config-password.png)
 
-**Firmware** -- OTA firmware upload, boot partition switching, device reboot, and factory reset.
+**Firmware** — OTA firmware upload, boot partition switching, device reboot, and factory reset.
 
 ![Firmware tab](/img/config-firmware.png)
 
