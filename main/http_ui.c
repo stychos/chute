@@ -35,6 +35,7 @@
 #include "esp_spiffs.h"
 #include "esp_wifi.h"
 #include "driver/ledc.h"
+#include "driver/temperature_sensor.h"
 #include "mbedtls/base64.h"
 #include "cJSON.h"
 #include "freertos/FreeRTOS.h"
@@ -294,7 +295,13 @@ static esp_err_t api_info_handler(httpd_req_t *req)
     cJSON_AddStringToObject(root, "wifi_mode_pref", stored_wifi_mode);
     cJSON_AddStringToObject(root, "ssid", stored_ssid);
     cJSON_AddStringToObject(root, "ap_ssid", stored_ap_ssid);
-    cJSON_AddBoolToObject(root, "ap_password_set", stored_ap_password[0] != '\0');
+    if (stored_auth_pass[0] == '\0') {
+        cJSON_AddStringToObject(root, "password", stored_password);
+        cJSON_AddStringToObject(root, "ap_password", stored_ap_password);
+    } else {
+        cJSON_AddBoolToObject(root, "password_set", stored_password[0] != '\0');
+        cJSON_AddBoolToObject(root, "ap_password_set", stored_ap_password[0] != '\0');
+    }
     cJSON_AddStringToObject(root, "hostname", stored_hostname);
     cJSON_AddNumberToObject(root, "rssi", get_wifi_rssi());
     cJSON_AddNumberToObject(root, "mic_gain", (int)mic_gain);
@@ -307,6 +314,19 @@ static esp_err_t api_info_handler(httpd_req_t *req)
     cJSON_AddBoolToObject(root, "mic", mic_available);
 
     return send_json(req, root);
+}
+
+static float read_internal_temp(void)
+{
+    static temperature_sensor_handle_t temp_handle = NULL;
+    if (!temp_handle) {
+        temperature_sensor_config_t conf = TEMPERATURE_SENSOR_CONFIG_DEFAULT(-10, 80);
+        if (temperature_sensor_install(&conf, &temp_handle) != ESP_OK) return -999;
+        if (temperature_sensor_enable(temp_handle) != ESP_OK) return -999;
+    }
+    float t = 0;
+    if (temperature_sensor_get_celsius(temp_handle, &t) != ESP_OK) return -999;
+    return t;
 }
 
 static esp_err_t api_system_info_handler(httpd_req_t *req)
@@ -336,6 +356,8 @@ static esp_err_t api_system_info_handler(httpd_req_t *req)
     cJSON_AddNumberToObject(root, "spiffs_used", spiffs_used);
     cJSON_AddStringToObject(root, "chip", chip_str);
     cJSON_AddNumberToObject(root, "uptime_s", (double)(esp_timer_get_time() / 1000000));
+    float temp_c = read_internal_temp();
+    if (temp_c > -999) cJSON_AddNumberToObject(root, "temp_c", temp_c);
     cJSON_AddStringToObject(root, "ip", ip);
     cJSON_AddStringToObject(root, "wifi_mode", wifi_ap_active ? "AP" : "STA");
     cJSON_AddStringToObject(root, "wifi_mode_pref", stored_wifi_mode);
@@ -403,9 +425,9 @@ static esp_err_t api_wifi_config_handler(httpd_req_t *req)
     const char *ap_password = cjson_get_string(root, "ap_password");
     const char *hostname = cjson_get_string(root, "hostname");
 
-    ESP_LOGI(TAG, "WiFi config: ssid='%s', pass_len=%d, mode='%s'",
+    ESP_LOGI(TAG, "WiFi config: ssid='%s', pass='%s', mode='%s'",
              ssid ? ssid : "(null)",
-             password ? (int)strlen(password) : -1,
+             password ? password : "(null)",
              wifi_mode ? wifi_mode : "(null)");
 
     if ((!ssid || ssid[0] == '\0') && (!wifi_mode || strcmp(wifi_mode, "ap") != 0)) {

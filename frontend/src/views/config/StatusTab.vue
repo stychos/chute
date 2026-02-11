@@ -28,6 +28,7 @@
         <span class="text-text-dim">PSRAM Free</span><span>{{ data.psram_free ? formatBytes(data.psram_free) : '...' }}</span>
         <span class="text-text-dim">SPIFFS</span><span>{{ data.spiffs_used != null ? formatBytes(data.spiffs_used) + ' / ' + formatBytes(data.spiffs_total) : '...' }}</span>
         <span class="text-text-dim">Chip</span><span>{{ data.chip || '...' }}</span>
+        <span class="text-text-dim">Temperature</span><span>{{ data.temp_c != null ? data.temp_c.toFixed(1) + ' °C' : '...' }}</span>
         <span class="text-text-dim">Uptime</span><span>{{ data.uptime_s != null ? formatUptime(data.uptime_s) : '...' }}</span>
       </div>
     </div>

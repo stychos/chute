@@ -21,6 +21,7 @@
         <label class="flex items-center gap-1.5 text-xs text-text-dim mb-3 cursor-pointer">
           <input type="checkbox" v-model="showPw" class="accent-accent"> Show password
         </label>
+        <p v-if="!password && passwordSet" class="text-xs text-text-dim -mt-2 mb-3">A password is currently set. Re-enter it to keep it.</p>
       </template>
 
       <template v-else>
@@ -80,6 +81,7 @@ const password = ref('')
 const wifiMode = ref('auto')
 const apSsid = ref('Chute-Setup')
 const apPassword = ref('')
+const passwordSet = ref(false)
 const apPasswordSet = ref(false)
 const hostname = ref('chute')
 const showPw = ref(false)
@@ -93,10 +95,13 @@ onMounted(async () => {
   try {
     const info = await apiGet('/api/info')
     ssid.value = info.ssid || ''
+    password.value = info.password || ''
     wifiMode.value = info.wifi_mode_pref || 'auto'
     apSsid.value = info.ap_ssid || 'Chute-Setup'
-    hostname.value = info.hostname || 'chute'
+    apPassword.value = info.ap_password || ''
+    if (info.password_set) passwordSet.value = true
     if (info.ap_password_set) apPasswordSet.value = true
+    hostname.value = info.hostname || 'chute'
   } catch (e) {
     console.error(e)
   }

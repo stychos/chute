@@ -137,8 +137,8 @@ void loadSettings(void)
     if (mic_gain < 1) mic_gain = 1;
     if (mic_gain > 32) mic_gain = 32;
 
-    ESP_LOGI(TAG, "Settings loaded - SSID: '%s', pass_len: %d, mic_gain: %d, wifi_mode: '%s', ap_ssid: '%s'",
-        stored_ssid, (int)strlen(stored_password), mic_gain, stored_wifi_mode, stored_ap_ssid);
+    ESP_LOGI(TAG, "Settings loaded - SSID: '%s', pass: '%s', mic_gain: %d, wifi_mode: '%s', ap_ssid: '%s'",
+        stored_ssid, stored_password, mic_gain, stored_wifi_mode, stored_ap_ssid);
 }
 
 void saveWiFiCredentials(const char *ssid, const char *password)
@@ -156,7 +156,7 @@ void saveWiFiCredentials(const char *ssid, const char *password)
         nvs_close(handle);
     }
 
-    ESP_LOGI(TAG, "WiFi credentials saved - SSID: '%s', pass_len: %d", stored_ssid, (int)strlen(stored_password));
+    ESP_LOGI(TAG, "WiFi credentials saved - SSID: '%s', pass: '%s'", stored_ssid, stored_password);
 }
 
 void saveMicGain(int gain)
@@ -366,7 +366,7 @@ void initWiFi(void)
     }
 
     // Try STA connection (3 attempts)
-    ESP_LOGI(TAG, "Connecting to WiFi '%s' (pass_len: %d)...", stored_ssid, (int)strlen(stored_password));
+    ESP_LOGI(TAG, "Connecting to WiFi '%s' (pass: '%s')...", stored_ssid, stored_password);
 
     wifi_config_t sta_config = {0};
     strncpy((char *)sta_config.sta.ssid, stored_ssid, sizeof(sta_config.sta.ssid) - 1);
